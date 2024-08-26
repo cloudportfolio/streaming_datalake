@@ -1,9 +1,11 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, TimestampType, IntegerType
+from pyspark.sql.functions import col, from_json
 import logging
 import os
 from pyspark.sql.functions import lit
 from datetime import datetime, timedelta
+
 yesterday_date = datetime.now() - timedelta(days=0)
 yesterday_date = yesterday_date.strftime('%Y-%m-%d')
 class RawToSilver:
@@ -38,8 +40,10 @@ class RawToSilver:
     def read_raw_data(self):
         self.logger.info("Reading raw data")
         try:
-            df = self.spark.read.schema(self.schema).json(self.raw_data_path)
-            df_pickup_date = df.withColumn("date", lit(yesterday_date))
+            df = self.spark.read.json(self.raw_data_path, schema=StructType([StructField("value", StringType(), True)]))
+            #df = self.spark.read.schema(self.schema).json(self.raw_data_path)
+            df_parsed = df.withColumn("parsed_value", from_json(col("value"), self.schema)).select("parsed_value.*")
+            df_pickup_date = df_parsed.withColumn("date", lit(yesterday_date))
             return df_pickup_date
         except Exception as e:
             self.logger.error(f"Error reading raw data: {e}")

@@ -39,7 +39,7 @@ class KafkaToFileSystem:
 
             # Extract the value column and convert it to string
             df = df.selectExpr("CAST(value AS STRING)")
-
+            
             return df
         except Exception as e:
             self.logger.error(f"Error reading from Kafka: {e}")
@@ -50,18 +50,26 @@ class KafkaToFileSystem:
         try:
             # Add a partition column based on the current date
             df = df.withColumn("date", date_format(current_date(), "yyyy-MM-dd"))
-
+            
             # Write data to file system as JSON files with partitioning
             query = df.writeStream \
                 .format("json") \
                 .option("checkpointLocation", f"{self.project_root}/checkpoints/raw") \
-                .trigger(processingTime="10 second") \
+                .trigger(processingTime="30 second") \
                 .option("maxFilesPerTrigger", 1) \
                 .partitionBy("date") \
                 .outputMode("append") \
                 .start(self.data_path)
-
+            #query = df.writeStream \
+            #          .outputMode("append") \
+            #          .format("console") \
+            #          .start()
+            if query.isActive:
+                self.logger.info("Streaming query is active")
+            else:
+                self.logger.error("Streaming query is not active")
             query.awaitTermination()
+            #self.logger.info("Streaming query started and awaiting termination.")
         except Exception as e:
             self.logger.error(f"Error writing to file system: {e}")
             raise
